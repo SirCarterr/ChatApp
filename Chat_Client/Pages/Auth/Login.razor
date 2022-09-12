@@ -1,0 +1,61 @@
+﻿@page "/login"
+@inject IAuthenticationService _authService
+@inject IJSRuntime _jsRuntime
+@inject NavigationManager _navigationManager
+
+<div class="container mt-3">
+    <h3 class="top-50 start-50 m-2">Welcome!</h3>
+    <h4 class="top-50 start-50 m-2">Please, authorize to start chating</h4>
+    <div class="top-50 start-50 m-1" style="border-color:black; border-radius:5px; border:2px">
+        <EditForm Model="signInRequestDTO" OnValidSubmit="LoginUser">
+            <DataAnnotationsValidator></DataAnnotationsValidator>
+            @if (ShowLoginErrors)
+            {
+                <p class="text-center text-danger">@Errors</p>
+            }
+
+            <div class="py-2">
+                <InputText @bind-Value="signInRequestDTO.Username" placeholder="Email..." class="form-control mb-2" />
+                <ValidationMessage For="(() => signInRequestDTO.Username)"></ValidationMessage>
+            </div>
+            <div class="py-2">
+                <InputText @bind-Value="signInRequestDTO.Password" type="password" placeholder="Password..." class="form-control mb-2" />
+                <ValidationMessage For="(() => signInRequestDTO.Password)"></ValidationMessage>
+            </div>
+
+            <div class="row m-1" style="height:36px">
+                @if (IsProcessing)
+                {
+                    <NavLink href="register" class="btn btn-outline-warning col-4 me-1" disabled>Create new account</NavLink>
+                    <button type="submit" class="btn btn-outline-primary col-4 me-1" disabled><img src="/img/Ellipsis.gif" /></button>
+                }
+                else
+                {
+                    <NavLink href="register" class="btn btn-outline-warning col-4 me-1">Create new account</NavLink>
+                    <button type="submit" class="btn btn-outline-primary col-4 me-1">Login</button>
+                }
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    public bool IsProcessing { get; set; } = false;
+    public SignInRequestDTO signInRequestDTO { get; set; } = new();
+    public bool ShowLoginErrors { get; set; } = false;
+    public string Errors { get; set; }
+
+    private async Task LoginUser()
+    {
+        IsProcessing = true;
+        var result = await _authService.LoginUser(signInRequestDTO);
+        if (!result.IsAuthSuccessful)
+        {
+            Errors = result.ErrorMessage;
+            ShowLoginErrors = true;
+        }
+        IsProcessing = false;
+        _navigationManager.NavigateTo("/");
+        await _jsRuntime.InvokeVoidAsync("ShowSwalToast", "Signed In!");
+    }
+}

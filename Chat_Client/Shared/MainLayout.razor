@@ -1,0 +1,34 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager _navigationManager
+
+<div class="page">
+    <main>
+        <AuthorizeView>
+            <Authorized>
+                <div class="top-row px-4">
+                    <b>Hello, @context.User.Identity.Name</b>
+                    <NavLink href="logout">Logout</NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationState;
+        if (!authState.User.Identity.IsAuthenticated)
+        {
+            _navigationManager.NavigateTo("/login");
+        }
+    }
+}

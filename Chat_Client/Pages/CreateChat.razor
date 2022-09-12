@@ -1,0 +1,131 @@
+﻿@using System.Text.RegularExpressions
+@inject IChatService _chatService
+
+
+<div class="modal fade show" id="ModalLogin" style="display:block; border-color:dimgray" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <EditForm Model="Chat" OnValidSubmit="AddChat">
+                <DataAnnotationsValidator></DataAnnotationsValidator>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Add Chat</h5>
+                    <button type="button" @onclick="@ModalCancel" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="py-2">
+                        <InputText @bind-Value="Chat.Name" placeholder="Name..." class="form-control mb-2" />
+                        <ValidationMessage For="() => Chat.Name"></ValidationMessage>
+                    </div>
+                    <div class="py-2">
+                        <label>Enter more users dividing them by ';'</label>
+                        <InputText @bind-Value="Chat.Users" placeholder="User(s)..." class="form-control mb-2" />
+                        @if (IsError)
+                        {
+                            <p class="text-danger">@ErrorMessage</p>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (IsProcessing)
+                    {
+                        <NavLink class="btn btn-secondary" disabled>Close</NavLink>
+                        <button class="btn btn-primary" disabled>Create</button>
+                    }
+                    else
+                    {
+                        <NavLink class="btn btn-secondary" @onclick="@ModalCancel">Close</NavLink>
+                        <button class="btn btn-primary">Create</button>
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<bool> OnClose { get; set; }
+    [Parameter]
+    public IEnumerable<UserDTO> AllUsers { get; set; }
+    [Parameter]
+    public string UserId { get; set; }
+
+    public ChatDTO Chat { get; set; } = new();
+    public string ErrorMessage { get; set; } = "";
+
+
+
+    public bool IsProcessing { get; set; } = false;
+    public bool IsError { get; set; } = false;
+
+    private async Task AddChat()
+    {
+        if (Regex.IsMatch(Chat.Users, @"([a-zA-z0-9_.-]+@[a-zA-z0-9-]+.[a-zA-z0-9-.]+);?"))
+        {
+            string[] added = Chat.Users.Split(';');
+
+            for (int i = 0; i < added.Length; i++)
+            {
+                if (AllUsers.FirstOrDefault(u => u.Email.Equals(added[i])) == null)
+                {
+                    ErrorMessage = $"user {added[i]} is not found";
+                    IsError = true;
+                    StateHasChanged();
+                    break;
+                }
+            }
+
+            for (int i = 0; i < added.Length; i++)
+            {
+                MatchCollection match = Regex.Matches(Chat.Users, $"({added[i]})");
+                if (match.Count > 1)
+                {
+                    ErrorMessage = $"user {added[i]} is already added";
+                    IsError = true;
+                    StateHasChanged();
+                    break;
+                }
+            }
+
+            if (!IsError)
+            {
+                foreach (var user in AllUsers)
+                {
+                    if (Regex.IsMatch(Chat.Users, $"({user.Email})"))
+                    {
+                        if (String.IsNullOrEmpty(Chat.UsersIds))
+                        {
+                            Chat.UsersIds += user.Id;
+                        }
+                        else
+                        {
+                            Chat.UsersIds += ';' + user.Id;
+                        }
+                    }
+                }
+
+
+                Chat.UserId = UserId;
+                await _chatService.CreateChat(Chat);
+                await ModalOk();
+            }
+        }
+        else
+        {
+            ErrorMessage = "Invalid input";
+            IsError = true;
+            StateHasChanged();
+        }
+    }
+
+    private Task ModalCancel()
+    {
+        return OnClose.InvokeAsync(false);
+    }
+
+    private Task ModalOk()
+    {
+        return OnClose.InvokeAsync(true);
+    }
+}

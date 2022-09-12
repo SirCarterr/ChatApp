@@ -1,0 +1,77 @@
+﻿@page "/register"
+@inject IAuthenticationService _authService
+@inject IJSRuntime _jsRuntime
+@inject NavigationManager _navigationManager
+
+<div class="container mt-3">
+    <h3 class="top-50 start-50 m-2">Welcome!</h3>
+    <h4 class="top-50 start-50 m-2">Please, authorize to start chating</h4>
+    <div class="top-50 start-50 m-1" style="border-color:black; border-radius:5px; border:2px">
+        <EditForm Model="signUpRequestDTO" OnValidSubmit="RegisterUser">
+            <DataAnnotationsValidator></DataAnnotationsValidator>
+            @if (ShowRegistrationErrors)
+            {
+                <div>
+                    @foreach (var error in Errors)
+                    {
+                        <p class="text-danger text-center">@error</p>
+                    }
+                </div>
+            }
+
+            <div class="py-2">
+                <InputText @bind-Value="signUpRequestDTO.Email" placeholder="Email..." class="form-control mb-2" />
+                <ValidationMessage For="(() => signUpRequestDTO.Email)"></ValidationMessage>
+            </div>
+            <div class="form-row py-2">
+                <div class="col">
+                    <InputText @bind-Value="signUpRequestDTO.Password" type="password" placeholder="Password..." class="form-control" />
+                    <ValidationMessage For="(() => signUpRequestDTO.Password)" />
+                </div>
+                <div class="col py-2">
+                    <InputText @bind-Value="signUpRequestDTO.ConfirmPassword" type="password" class="form-control" placeholder="Confirm Password..." />
+                    <ValidationMessage For="(() => signUpRequestDTO.ConfirmPassword)" />
+                </div>
+            </div>
+
+            <div class="row m-1" style="height:36px">
+                @if (IsProcessing)
+                {
+                    <NavLink href="login" class="btn btn-outline-secondary col-4 me-1" disabled>Back</NavLink>
+                    <button type="submit" class="btn btn-outline-primary col-4 me-1" disabled><img src="/img/Ellipsis.gif" /></button>
+                }
+                else
+                {
+                    <NavLink href="login" class="btn btn-outline-secondary col-4 me-1">Back</NavLink>
+                    <button type="submit" class="btn btn-outline-primary col-4 me-1">Register</button>
+                }
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    public bool IsProcessing { get; set; } = false;
+    public SignUpRequestDTO signUpRequestDTO { get; set; } = new();
+    public bool ShowRegistrationErrors { get; set; }
+    public IEnumerable<string> Errors { get; set; }
+
+    private async Task RegisterUser()
+    {
+        IsProcessing = true;
+        var result = await _authService.RegisterUser(signUpRequestDTO);
+        if (result.IsRegistrationSuccessful)
+        {
+            //registration is successful
+            _navigationManager.NavigateTo("/login");
+            await _jsRuntime.InvokeVoidAsync("ShowSwalToast", "Account created!");
+        }
+        else
+        {
+            //failure
+            Errors = result.Errors;
+            ShowRegistrationErrors = true;
+        }
+        IsProcessing = false;
+    }
+}

@@ -1,0 +1,577 @@
+﻿@page "/"
+@using Blazored.LocalStorage
+@using Chat_Common
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Http.Connections
+@using Microsoft.AspNetCore.Http.Connections.Client
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text.RegularExpressions
+@using System.Net.Http.Headers
+@inject ILocalStorageService _localStorage
+@inject IChatService _chatService
+@inject IMessageService _messageService
+@inject NavigationManager _navigationManager
+@inject IConfiguration _configuration
+@inject IJSRuntime _jsRuntime
+
+<AuthorizeView>
+    <Authorized>
+        <div class="row m-1">
+            <div class="col-4">
+                <div class="input-group">
+                    <input type="text" @bind-value="SearchChat" class="form-control" placeholder="Search chat..." aria-describedby="button-search">
+                    <button class="btn btn-primary" type="button" id="button-search" @onclick="() => SearchChats()"><span class="oi oi-magnifying-glass"></span></button>
+                </div>
+                <button class="btn btn-primary mb-3 my-2" type="button" @onclick="() => OpenDialog()">Add new chat <span class="oi oi-plus"></span></button>
+                <h5 class="m-1">Chats</h5>
+                <ul class="list-group overflow-auto" style="max-height:800px; border:2px; border-color:gray; border-radius:5px">
+                    @foreach (var chat in Notifications)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center" @onclick="() => LoadMessages(UserChats.First(c => c.Name.Equals(chat.ChatName)))">
+                            <button class="btn btn-sm btn-danger" @ondblclick="() => DeleteChat(chat)"><span class="oi oi-trash"></span></button>
+                            @chat.ChatName
+                            @if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages > 0)
+                            {
+                                <span class="badge bg-primary rounded-pill">
+                                    @Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages
+                                </span>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+            <div class="col-8">
+                @if (CurrentChat != null)
+                {
+                    <h3 class="m-1">@CurrentChat.Name</h3>
+                }
+                <div class="m-1 p-1 overflow-auto" @onwheel="() => OnScrollTop()" style="border-radius:5px; border-color:gray; border:thin; border-style: solid; height:700px" id="chatContainer">
+                    @if (CurrentChatMessages == null)
+                    {
+                        <h4 class="text-center">Chat not choosen</h4>
+                    }
+                    else if (CurrentChatMessages.Any())
+                    {
+                        @foreach (var m in CurrentChatMessages)
+                        {
+                            if(m.IsReplyMessage)
+                            {
+                                if (m.FromUserId.Equals(CurrentUser.Id))
+                                {
+                                    <div class="d-flex flex-row justify-content-start mt-2 p-1" style="height:auto; width:auto; background-color:cornflowerblue; border-radius:10px">
+                                        <i class="small text-light mx-1" style="overflow-wrap:normal">@m.Message</i>
+                                        <span class="small text-light ms-auto">reply</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-row justify-content-end mt-2 p-1" style="height:auto; width:auto; background-color:lightslategrey; border-radius:10px">
+                                        <span class="small text-light me-auto">reply</span>
+                                        <i class="small mx-1 text-light" style="overflow-wrap:normal">@m.Message</i>
+                                    </div>
+                                }
+                            }
+                            else if (m.FromUserId.Equals(CurrentUser.Id) && !m.DeletedForCaller)
+                            {
+                                <div class="d-flex flex-row justify-content-start my-2 p-2" style="height:auto; width:auto; background-color:lightblue; border-radius:10px">
+                                    <b class="small">@CurrentUser.Email :</b>
+                                    <p class="small mx-1" style="overflow-wrap:normal">@m.Message</p>
+                                    @if (m.IsEdited)
+                                    {
+                                        <span class="small ms-auto">edited</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="small ms-auto time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
+                                    }
+                                    <div class="btn-group ms-1">
+                                        <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="oi oi-menu"></span>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item small" @onclick="() => EditMessage(m)">Edit</a></li>
+                                            <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, false)">Delete for yourself</a></li>
+                                            <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, true)">Delete for all</a></li>
+                                            <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            }
+                            else if (!m.FromUserId.Equals(CurrentUser.Id))
+                            {
+                                <div class="d-flex flex-row justify-content-end my-2 p-2" style="height:auto; width:auto; background-color:lightgrey; border-radius:10px">
+                                    <div class="btn-group ms-1">
+                                        <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="oi oi-menu"></span>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
+                                            @if (!CurrentChat.UsersIds.Equals(m.FromUserId)) 
+                                            {
+                                                <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, true)">Reply privatly</a></li>
+                                            }
+                                        </ul>
+                                    </div>
+                                    @if (m.IsEdited)
+                                    {
+                                        <span class="small me-auto">edited</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="small me-auto time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
+                                    }
+                                    <p class="small mx-1" style="overflow-wrap:normal">@m.Message</p>
+                                    <b class="small">: @AllUsers.FirstOrDefault(u => u.Id.Equals(m.FromUserId))!.Email</b>
+                                </div>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <h4 class="text-center">No messages found</h4>
+                    }
+                </div>
+                @if (ReplyMessage.ChatId != 0)
+                {
+                    <label class="m-1 bg-warning">@ReplyMessage.Message</label>
+                }
+                <div class="input-group">
+                    @if (NewMessage.Id != 0)
+                    {
+                        <span class="input-group-text">Edit:</span>
+                        <input type="text" @bind-value="NewMessage.Message" class="form-control" placeholder="Message..." aria-describedby="button-send">
+                        <button class="btn btn-danger" type="button" id="button-send" @onclick="() => CancelEdit()"><span class="oi oi-x"></span></button>
+                        <button class="btn btn-primary" type="button" id="button-send" @onclick="() => SendMessage()"><span class="oi oi-caret-right"></span></button>
+                    }
+                    else if (ReplyMessage.ChatId != 0)
+                    {
+                        <input type="text" @bind-value="NewMessage.Message" class="form-control" placeholder="Message..." aria-describedby="button-send">
+                        <button class="btn btn-danger" type="button" id="button-send" @onclick="() => CancelReplying()"><span class="oi oi-x"></span></button>
+                        <button class="btn btn-primary" type="button" id="button-send" @onclick="() => SendMessage()"><span class="oi oi-caret-right"></span></button>
+                    }
+                    else
+                    {
+                        <input type="text" @bind-value="NewMessage.Message" class="form-control" placeholder="Message..." aria-describedby="button-send">
+                        <button class="btn btn-primary" type="button" id="button-send" @onclick="() => SendMessage()"><span class="oi oi-caret-right"></span></button>
+                    }
+                </div>
+            </div>
+        </div>
+        @if (IsDialogOpen)
+        {
+            <CreateChat OnClose="@OnDialogClose" AllUsers="@AllUsers" UserId="@CurrentUser.Id"></CreateChat>
+        }
+    </Authorized>
+</AuthorizeView>
+
+
+@code {
+    public string SearchChat { get; set; } = "";
+    public ChatMessageDTO NewMessage { get; set; } = new();
+
+    public UserDTO CurrentUser { get; set; } = new();
+    public IEnumerable<ChatDTO> UserChats { get; set; } = new List<ChatDTO>();
+    public IEnumerable<UserDTO> AllUsers { get; set; } = new List<UserDTO>();
+    public ChatDTO CurrentChat { get; set; }
+    public List<ChatMessageDTO> CurrentChatMessages { get; set; }
+
+    public HubConnection hubConnection { get; set; }
+    public List<NotificationsDTO> Notifications { get; set; } = new List<NotificationsDTO>();
+
+    public bool IsDialogOpen { get; set; } = false;
+
+    public ChatMessageDTO ReplyMessage { get; set; } = new();
+    public bool IsPrivateReply { get; set; } = false;
+    public string PrivateReplyToUser { get; set; } = "";
+
+    [Authorize]
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUser = await _localStorage.GetItemAsync<UserDTO>(SD.Local_UserDetails);
+        var token = await _localStorage.GetItemAsync<string>(SD.Local_Token);
+
+        hubConnection = new HubConnectionBuilder().WithUrl(_configuration.GetValue<string>("BaseAPIUrl") + "/chatHub",
+        HttpTransportType.LongPolling, options =>
+        {
+            options.AccessTokenProvider = () => Task.FromResult(token);
+        }).Build();
+        await hubConnection.StartAsync();
+
+
+        hubConnection.On<string>("ReceiveNotification", async (groupName) =>
+        {
+            if (CurrentChat != null)
+            {
+                if (CurrentChat.Name.Equals(groupName))
+                {
+                    await LoadMessages(UserChats.FirstOrDefault(c => c.Name.Equals(groupName)));
+                    StateHasChanged();
+                    await _jsRuntime.InvokeAsync<string>("ScrollToBottom", "chatContainer");
+                    StateHasChanged();
+                }
+                else
+                {
+                    LoadChatsWithNotification(groupName);
+                }
+            }
+            else
+            {
+                LoadChatsWithNotification(groupName);
+            }
+        });
+        hubConnection.On<string>("Receive", async (groupName) =>
+        {
+            NewMessage = new();
+            await LoadMessages(UserChats.FirstOrDefault(c => c.Name.Equals(groupName)));
+            StateHasChanged();
+            await _jsRuntime.InvokeAsync<string>("ScrollToBottom", "chatContainer");
+            StateHasChanged();
+        });
+        hubConnection.On("ChatAdded", async () =>
+        {
+            await LoadChats();
+        });
+        hubConnection.On<string, string>("CheckChat", async (groupName, users) =>
+        {
+            string[] users_splited = users.Split(';');
+            foreach (var user in users_splited)
+            {
+                if (CurrentUser.Email.Equals(user))
+                {
+                    await hubConnection.SendAsync("AddChat", groupName);
+                }
+            }
+        });
+        hubConnection.On<string>("Refresh", async (groupName) =>
+        {
+            if (CurrentChat.Name.Equals(groupName))
+            {
+                await LoadMessages(UserChats.FirstOrDefault(c => c.Name.Equals(groupName)));
+                StateHasChanged();
+                await _jsRuntime.InvokeAsync<string>("ScrollToBottom", "chatContainer");
+                StateHasChanged();
+            }
+        });
+        hubConnection.On<string>("ChatDeleted", async (groupName) =>
+        {
+            if (CurrentChat.Name.Equals(groupName))
+            {
+                CurrentChat = new();
+                CurrentChatMessages = new();
+                StateHasChanged();
+            }
+
+            await LoadChats();
+            await _jsRuntime.InvokeVoidAsync("ShowSwalToast2", $"Chat {groupName} deleted by creator");
+        });
+
+        await LoadUsers();
+        await LoadChats();
+
+        foreach (var chat in UserChats)
+        {
+            await hubConnection.SendAsync("ConnectToChat", chat.Name);
+        }
+    }
+
+    private async Task LoadChats()
+    {
+        UserChats = await _chatService.GetChats();
+
+        Notifications.Clear();
+        foreach (var chat in UserChats)
+        {
+            Notifications.Add(new NotificationsDTO() { ChatName = chat.Name, NewMessages = 0 });
+        }
+        StateHasChanged();
+    }
+
+    private void LoadChatsWithNotification(string chatName)
+    {
+        List<int> current_notifications = new List<int>();
+
+        foreach (var n in Notifications)
+        {
+            current_notifications.Add(n.NewMessages);
+        }
+
+        Notifications.Clear();
+        StateHasChanged();
+
+        for (int i = 0; i < UserChats.Count(); i++)
+        {
+            if (UserChats.ToList()[i].Name.Equals(chatName))
+            {
+                Notifications.Add(new NotificationsDTO() { ChatName = UserChats.ToList()[i].Name, NewMessages = current_notifications[i] + 1 });
+            }
+            else
+            {
+                Notifications.Add(new NotificationsDTO() { ChatName = UserChats.ToList()[i].Name, NewMessages = current_notifications[i] });
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task LoadMessages(ChatDTO chat)
+    {
+        CurrentChat = chat;
+
+        if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.Name)) != null)
+        {
+            Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.Name))!.NewMessages = 0;
+        }
+
+        IEnumerable<ChatMessageDTO> chatMessages = await _messageService.GetChatMessages(chat.Id);
+        CurrentChatMessages = chatMessages.ToList();
+        NewMessage = new();
+        StateHasChanged();
+        await _jsRuntime.InvokeAsync<string>("ScrollToBottom", "chatContainer");
+        StateHasChanged();
+    }
+
+    private async Task OnScrollTop()
+    {
+        if (CurrentChat != null && CurrentChatMessages.Any())
+        {
+            DotNetObjectReference<Index> objRef = DotNetObjectReference.Create(this);
+            await _jsRuntime.InvokeAsync<string>("IsScrollTop", "chatContainer", objRef);
+        }
+    }
+
+    [JSInvokable]
+    public async void GetNewMessages() => await LoadMoreMessages();
+
+    private async Task LoadMoreMessages()
+    {
+        IEnumerable<ChatMessageDTO> newMessages = await _messageService.GetMoreChatMessages(CurrentChat.Id, (int)CurrentChatMessages.First().Id);
+
+        IEnumerable<ChatMessageDTO> mergedMessages = newMessages.Concat(CurrentChatMessages);
+        CurrentChatMessages = mergedMessages.ToList();
+        StateHasChanged();
+        await _jsRuntime.InvokeAsync<string>("ScrollToCenter", "chatContainer");
+        StateHasChanged();
+    }
+
+    private async Task LoadUsers()
+    {
+        AllUsers = await _chatService.GetUsers();
+        StateHasChanged();
+    }
+
+    private async Task SearchChats()
+    {
+        if (String.IsNullOrEmpty(SearchChat) || String.IsNullOrWhiteSpace(SearchChat))
+        {
+            await LoadChats();
+        }
+
+        var chats = await _chatService.GetChats();
+
+        Notifications.Clear();
+        foreach (var chat in chats)
+        {
+            if (Regex.IsMatch(chat.Name.ToLower(), $"({SearchChat.ToLower()})"))
+            {
+                Notifications.Add(new NotificationsDTO() { ChatName = chat.Name, NewMessages = 0 });
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SendMessage()
+    {
+        if (NewMessage.Id != 0 && !NewMessage.Message.Equals(CurrentChatMessages.First(m => m.Id == NewMessage.Id)) &&
+        !String.IsNullOrEmpty(NewMessage.Message) && !String.IsNullOrWhiteSpace(NewMessage.Message))
+        {
+            await _messageService.UpdateMessage(NewMessage);
+            await hubConnection.SendAsync("SendMessage", CurrentChat.Name);
+        }
+        else if (ReplyMessage.ChatId != 0 && !String.IsNullOrEmpty(NewMessage.Message) && !String.IsNullOrWhiteSpace(NewMessage.Message))
+        {
+            if (IsPrivateReply)
+            {
+                bool chatExist = false;
+                foreach (var chat in UserChats)
+                {
+                    if ((chat.UserId.Equals(CurrentUser.Id) && chat.UsersIds.Equals(ReplyMessage.FromUserId)) || 
+                    (chat.UserId.Equals(ReplyMessage.FromUserId) && chat.UsersIds.Equals(CurrentUser.Id)))
+                    {
+                        ReplyMessage.ChatId = chat.Id;
+                        ReplyMessage.FromUserId = CurrentUser.Id;
+                        NewMessage.ChatId = chat.Id;
+                        NewMessage.FromUserId = CurrentUser.Id;
+
+                        await _messageService.CreateMessage(ReplyMessage);
+                        await _messageService.CreateMessage(NewMessage);
+                        CancelReplying();
+                        await hubConnection.SendAsync("SendMessage", chat.Name);
+                        chatExist = true;
+                    }
+                }
+
+                if (!chatExist)
+                {
+                    ChatDTO newChat = new ChatDTO()
+                        {
+                            Name = CurrentUser.Email + "-" + PrivateReplyToUser,
+                            UserId = CurrentUser.Id,
+                            Users = PrivateReplyToUser,
+                            UsersIds = AllUsers.First(u => u.Email.Equals(PrivateReplyToUser)).Id
+                        };
+
+                    var db_chat = await _chatService.CreateChat(newChat);
+                    await LoadChats();
+                    await hubConnection.SendAsync("ConnectToChat", newChat.Name);
+                    await hubConnection.SendAsync("AddUserToChat", newChat.Name, newChat.Users);
+
+                    ReplyMessage.ChatId = db_chat.Id;
+                    ReplyMessage.FromUserId = CurrentUser.Id;
+                    NewMessage.ChatId = db_chat.Id;
+                    NewMessage.FromUserId = CurrentUser.Id;
+
+                    await _messageService.CreateMessage(ReplyMessage);
+                    await _messageService.CreateMessage(NewMessage);
+                    CancelReplying();
+                    await hubConnection.SendAsync("SendMessage", newChat.Name);
+                }
+            }
+            else
+            {
+                NewMessage.FromUserId = CurrentUser.Id;
+                NewMessage.ChatId = CurrentChat.Id;
+                await _messageService.CreateMessage(ReplyMessage);
+                await _messageService.CreateMessage(NewMessage);
+                CancelReplying();
+                await hubConnection.SendAsync("SendMessage", CurrentChat.Name);
+            }
+        }
+        else if (!String.IsNullOrEmpty(NewMessage.Message) && !String.IsNullOrWhiteSpace(NewMessage.Message))
+        {
+            NewMessage.FromUserId = CurrentUser.Id;
+            NewMessage.ChatId = CurrentChat.Id;
+
+            await _messageService.CreateMessage(NewMessage);
+            await hubConnection.SendAsync("SendMessage", CurrentChat.Name);
+        }
+    }
+
+    private void EditMessage(ChatMessageDTO messageDTO)
+    {
+        NewMessage = new ChatMessageDTO()
+            {
+                Id = messageDTO.Id,
+                Message = messageDTO.Message,
+                ChatId = messageDTO.ChatId,
+                CreatedDate = messageDTO.CreatedDate,
+                FromUserId = messageDTO.FromUserId,
+            };
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        NewMessage = new();
+        StateHasChanged();
+    }
+
+    private async Task DeleteMessage(ChatMessageDTO message, bool forAll)
+    {
+        if (forAll)
+        {
+            await _messageService.DeleteMessage((int)message.Id);
+            await hubConnection.SendAsync("RefreshChat", CurrentChat.Name);
+        }
+        else
+        {
+            message.DeletedForCaller = true;
+            await _messageService.UpdateMessage(message);
+            await LoadMessages(CurrentChat);
+        }
+    }
+
+    private void ReplyOnMessage(ChatMessageDTO messageDTO, bool isPrivate)
+    {
+        ReplyMessage = new ChatMessageDTO()
+            {
+                ChatId = messageDTO.ChatId,
+                FromUserId = messageDTO.FromUserId,
+                IsReplyMessage = true
+            };
+
+        if (CurrentUser.Id.Equals(messageDTO.FromUserId))
+        {
+            ReplyMessage.Message = $"Reply to {CurrentUser.Email}: " + messageDTO.Message;
+        }
+        else
+        {
+            ReplyMessage.Message = $"Reply to {AllUsers.First(u => u.Id.Equals(messageDTO.FromUserId)).Email}: " + messageDTO.Message;
+            PrivateReplyToUser = AllUsers.First(u => u.Id.Equals(messageDTO.FromUserId)).Email;
+        }
+
+        IsPrivateReply = isPrivate;
+        StateHasChanged();
+    }
+
+    private void CancelReplying()
+    {
+        ReplyMessage = new();
+        NewMessage = new();
+        IsPrivateReply = false;
+        PrivateReplyToUser = "";
+        StateHasChanged();
+    }
+
+    public async Task DeleteChat(NotificationsDTO chat)
+    {
+        var chatDTO = UserChats.First(c => c.Name.Equals(chat.ChatName));
+        if (CurrentUser.Id.Equals(chatDTO.UserId))
+        {
+            await _chatService.DeleteChat(chatDTO.Id);
+            if (CurrentChat.Name.Equals(chatDTO.Name))
+            {
+                CurrentChat = new();
+                CurrentChatMessages = new();
+                StateHasChanged();
+            }
+            await LoadChats();
+            await LoadMessages(CurrentChat);
+            await hubConnection.SendAsync("DeleteChat", chatDTO.Name);
+        }
+        else
+        {
+            chatDTO.UsersIds = Regex.Replace(chatDTO.UsersIds, $"({CurrentUser.Id})", "");
+            chatDTO.Users = Regex.Replace(chatDTO.Users, $"({CurrentUser.Email})", "");
+
+            NewMessage.ChatId = chatDTO.Id;
+            NewMessage.FromUserId = CurrentUser.Id;
+            NewMessage.Message = $"User {CurrentUser.Email} left";
+            NewMessage.IsReplyMessage = true;
+
+            await _chatService.UpdateChat(chatDTO);
+            await _messageService.CreateMessage(NewMessage);
+            await LoadChats();
+            await LoadMessages(CurrentChat);
+            await hubConnection.SendAsync("RemoveFromChat", chatDTO.Name);
+            await hubConnection.SendAsync("SendMessage", chatDTO.Name);
+        }
+    }
+
+    private async void OnDialogClose(bool accepted)
+    {
+        IsDialogOpen = false;
+
+        if (accepted)
+        {
+            await LoadChats();
+            await hubConnection.SendAsync("ConnectToChat", UserChats.LastOrDefault()?.Name);
+            await hubConnection.SendAsync("AddUserToChat", UserChats.LastOrDefault()?.Name, UserChats.LastOrDefault()?.Users);
+        }
+    }
+
+    private void OpenDialog()
+    {
+        IsDialogOpen = true;
+        StateHasChanged();
+    }
+}
