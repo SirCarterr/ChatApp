@@ -17,7 +17,7 @@
 <AuthorizeView>
     <Authorized>
         <div class="row m-1">
-            <div class="col-4">
+            <div class="col-md-4">
                 <div class="input-group">
                     <input type="text" @bind-value="SearchChat" class="form-control" placeholder="Search chat..." aria-describedby="button-search">
                     <button class="btn btn-primary" type="button" id="button-search" @onclick="() => SearchChats()"><span class="oi oi-magnifying-glass"></span></button>
@@ -25,22 +25,31 @@
                 <button class="btn btn-primary mb-3 my-2" type="button" @onclick="() => OpenDialog()">Add new chat <span class="oi oi-plus"></span></button>
                 <h5 class="m-1">Chats</h5>
                 <ul class="list-group overflow-auto" style="max-height:800px; border:2px; border-color:gray; border-radius:5px">
-                    @foreach (var chat in Notifications)
+                    @if (!IsChatsLoading)
                     {
-                        <li class="list-group-item d-flex justify-content-between align-items-center" @onclick="() => LoadMessages(UserChats.First(c => c.Name.Equals(chat.ChatName)))">
-                            <button class="btn btn-sm btn-danger" @ondblclick="() => DeleteChat(chat)"><span class="oi oi-trash"></span></button>
-                            @chat.ChatName
-                            @if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages > 0)
-                            {
-                                <span class="badge bg-primary rounded-pill">
-                                    @Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages
-                                </span>
-                            }
+                        @foreach (var chat in Notifications)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center" @onclick="() => LoadMessages(UserChats.First(c => c.Name.Equals(chat.ChatName)))">
+                                <button class="btn btn-sm btn-danger" @ondblclick="() => DeleteChat(chat)"><span class="oi oi-trash"></span></button>
+                                @chat.ChatName
+                                @if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages > 0)
+                                {
+                                    <span class="badge bg-primary rounded-pill">
+                                        @Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages
+                                    </span>
+                                }
+                            </li>
+                        }
+                    }
+                    else
+                    {
+                        <li class="list-group-item">
+                            <img src="/img/Spinner.gif" class="text-center">
                         </li>
                     }
                 </ul>
             </div>
-            <div class="col-8">
+            <div class="col-md-8">
                 @if (CurrentChat != null)
                 {
                     <h3 class="m-1">@CurrentChat.Name</h3>
@@ -58,70 +67,80 @@
                             {
                                 if (m.FromUserId.Equals(CurrentUser.Id))
                                 {
-                                    <div class="d-flex flex-row justify-content-start mt-2 p-1" style="height:auto; width:auto; background-color:cornflowerblue; border-radius:10px">
-                                        <i class="small text-light mx-1" style="overflow-wrap:normal">@m.Message</i>
-                                        <span class="small text-light ms-auto">reply</span>
+                                    <div class="d-flex flex-row justify-content-end mt-2 p-1">
+                                        <div class="d-flex flex-column" style="height:auto; width:auto; max-width: 50%; background-color:cornflowerblue; border-radius:10px">
+                                            <i class="small text-light mx-1" style="overflow-wrap:normal">@m.Message</i>
+                                        </div>
                                     </div>
                                 }
                                 else
                                 {
-                                    <div class="d-flex flex-row justify-content-end mt-2 p-1" style="height:auto; width:auto; background-color:lightslategrey; border-radius:10px">
-                                        <span class="small text-light me-auto">reply</span>
-                                        <i class="small mx-1 text-light" style="overflow-wrap:normal">@m.Message</i>
+                                    <div class="d-flex flex-row justify-content-start mt-2 p-1">
+                                        <div class="d-flex flex-column" style="height:auto; width:auto; max-width: 50%; background-color:lightslategrey; border-radius:10px">
+                                            <i class="small mx-1 text-light" style="overflow-wrap:normal">@m.Message</i>
+                                        </div>
                                     </div>
                                 }
                             }
                             else if (m.FromUserId.Equals(CurrentUser.Id) && !m.DeletedForCaller)
                             {
-                                <div class="d-flex flex-row justify-content-start my-2 p-2" style="height:auto; width:auto; background-color:lightblue; border-radius:10px">
-                                    <b class="small">@CurrentUser.Email :</b>
-                                    <p class="small mx-1" style="overflow-wrap:normal">@m.Message</p>
-                                    @if (m.IsEdited)
-                                    {
-                                        <span class="small ms-auto">edited</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="small ms-auto time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
-                                    }
-                                    <div class="btn-group ms-1">
-                                        <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="oi oi-menu"></span>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item small" @onclick="() => EditMessage(m)">Edit</a></li>
-                                            <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, false)">Delete for yourself</a></li>
-                                            <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, true)">Delete for all</a></li>
-                                            <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
-                                        </ul>
+                                <div class="d-flex flex-row justify-content-end my-2 p-2">
+                                    <div class="d-flex flex-column" style="height:auto; width:auto; max-width: 50%">
+                                        <b class="small text-end">@CurrentUser.Email</b>
+                                        <div class="d-inline-flex justify-content-between small mx-1 p-1 text-start" style="overflow-wrap:normal; background-color:lightblue; border-radius:10px">
+                                            <div>@m.Message</div>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    ...
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li><a class="dropdown-item small" @onclick="() => EditMessage(m)">Edit</a></li>
+                                                    <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, false)">Delete for yourself</a></li>
+                                                    <li><a class="dropdown-item small" @onclick="() => DeleteMessage(m, true)">Delete for all</a></li>
+                                                    <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        @if (m.IsEdited)
+                                        {
+                                            <span class="small text-end me-1">edited</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-end me-1 time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
+                                        }
                                     </div>
                                 </div>
                             }
                             else if (!m.FromUserId.Equals(CurrentUser.Id))
                             {
-                                <div class="d-flex flex-row justify-content-end my-2 p-2" style="height:auto; width:auto; background-color:lightgrey; border-radius:10px">
-                                    <div class="btn-group ms-1">
-                                        <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="oi oi-menu"></span>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
-                                            @if (!CurrentChat.UsersIds.Equals(m.FromUserId)) 
-                                            {
-                                                <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, true)">Reply privatly</a></li>
-                                            }
-                                        </ul>
+                                <div class="d-flex flex-row justify-content-start my-2 p-2">
+                                    <div class="d-flex flex-column" style="height:auto; width:auto; max-width: 50%">
+                                        <b class="small text-start">@AllUsers.FirstOrDefault(u => u.Id.Equals(m.FromUserId))!.Email</b>
+                                        <div class="d-inline-flex justify-content-between small mx-1 p-1 text-start" style="overflow-wrap:normal; background-color:lightgrey; border-radius:10px">
+                                            <div>@m.Message</div>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    ...
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
+                                                    @if (!CurrentChat.UsersIds.Equals(m.FromUserId)) 
+                                                    {
+                                                        <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, true)">Reply privatly</a></li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        @if (m.IsEdited)
+                                        {
+                                            <span class="small text-end me-1">edited</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="small text-end me-1 time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
+                                        }
                                     </div>
-                                    @if (m.IsEdited)
-                                    {
-                                        <span class="small me-auto">edited</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="small me-auto time-left">@m.CreatedDate!.Value.ToString("HH:mm")</span>
-                                    }
-                                    <p class="small mx-1" style="overflow-wrap:normal">@m.Message</p>
-                                    <b class="small">: @AllUsers.FirstOrDefault(u => u.Id.Equals(m.FromUserId))!.Email</b>
                                 </div>
                             }
                         }
@@ -169,6 +188,8 @@
     public string SearchChat { get; set; } = "";
     public ChatMessageDTO NewMessage { get; set; } = new();
 
+    public bool IsChatsLoading { get; set; } = false;
+
     public UserDTO CurrentUser { get; set; } = new();
     public IEnumerable<ChatDTO> UserChats { get; set; } = new List<ChatDTO>();
     public IEnumerable<UserDTO> AllUsers { get; set; } = new List<UserDTO>();
@@ -190,6 +211,19 @@
         CurrentUser = await _localStorage.GetItemAsync<UserDTO>(SD.Local_UserDetails);
         var token = await _localStorage.GetItemAsync<string>(SD.Local_Token);
 
+        await SetHub(token);
+
+        await LoadUsers();
+        await LoadChats();
+
+        foreach (var chat in UserChats)
+        {
+            await hubConnection.SendAsync("ConnectToChat", chat.Name);
+        }
+    }
+
+    private async Task SetHub(string token)
+    {
         hubConnection = new HubConnectionBuilder().WithUrl(_configuration.GetValue<string>("BaseAPIUrl") + "/chatHub",
         HttpTransportType.LongPolling, options =>
         {
@@ -264,18 +298,13 @@
             await LoadChats();
             await _jsRuntime.InvokeVoidAsync("ShowSwalToast2", $"Chat {groupName} deleted by creator");
         });
-
-        await LoadUsers();
-        await LoadChats();
-
-        foreach (var chat in UserChats)
-        {
-            await hubConnection.SendAsync("ConnectToChat", chat.Name);
-        }
     }
 
     private async Task LoadChats()
     {
+        IsChatsLoading = true;
+        StateHasChanged();
+
         UserChats = await _chatService.GetChats();
 
         Notifications.Clear();
@@ -283,6 +312,8 @@
         {
             Notifications.Add(new NotificationsDTO() { ChatName = chat.Name, NewMessages = 0 });
         }
+
+        IsChatsLoading = false;
         StateHasChanged();
     }
 
@@ -398,7 +429,6 @@
                     (chat.UserId.Equals(ReplyMessage.FromUserId) && chat.UsersIds.Equals(CurrentUser.Id)))
                     {
                         ReplyMessage.ChatId = chat.Id;
-                        ReplyMessage.FromUserId = CurrentUser.Id;
                         NewMessage.ChatId = chat.Id;
                         NewMessage.FromUserId = CurrentUser.Id;
 
@@ -426,7 +456,6 @@
                     await hubConnection.SendAsync("AddUserToChat", newChat.Name, newChat.Users);
 
                     ReplyMessage.ChatId = db_chat.Id;
-                    ReplyMessage.FromUserId = CurrentUser.Id;
                     NewMessage.ChatId = db_chat.Id;
                     NewMessage.FromUserId = CurrentUser.Id;
 
@@ -495,7 +524,7 @@
         ReplyMessage = new ChatMessageDTO()
             {
                 ChatId = messageDTO.ChatId,
-                FromUserId = messageDTO.FromUserId,
+                FromUserId = CurrentUser.Id,
                 IsReplyMessage = true
             };
 

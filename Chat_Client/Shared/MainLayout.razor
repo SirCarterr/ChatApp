@@ -5,9 +5,12 @@
     <main>
         <AuthorizeView>
             <Authorized>
-                <div class="top-row px-4">
-                    <b>Hello, @context.User.Identity.Name</b>
-                    <NavLink href="logout">Logout</NavLink>
+                <div class="d-flex flex-md-row justify-content-between p-md-2" style="background-color: lightgrey">
+                    <h2 class="text-primary m-1">Chat</h2>
+                    <div class="mt-2">
+                        <b class="mx-1">Hello, @context.User.Identity.Name</b>
+                        <NavLink class="mx-1" href="logout">Logout</NavLink>
+                    </div>
                 </div>
             </Authorized>
         </AuthorizeView>
