@@ -72,10 +72,11 @@ namespace Chat_Business.Repository
                 if (!m_db.Message.Equals(message.Message))
                 {
                     var replied = _db.ChatMessages.Where(m => m.CreatedDate.Equals(message.CreatedDate) && m.IsReplyMessage && m.Message.Equals(m_db) 
-                    && m.Chat.Name.Equals(message.Chat.Name));
+                    && m.Chat.Id == message.Chat!.Id);
                     foreach (var reply in replied)
                     {
-                        reply.Message = message.Message;
+                        string replySplit = reply.Message.Split(':')[0];
+                        reply.Message = replySplit + " " + message.Message;
                         _db.ChatMessages.Update(reply);
                     }
                     m_db.IsEdited = true;

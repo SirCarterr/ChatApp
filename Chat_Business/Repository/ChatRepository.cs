@@ -63,7 +63,7 @@ namespace Chat_Business.Repository
             var c = await _db.Chats.FirstOrDefaultAsync(i => i.Id == chat.Id);
             if (c != null)
             {
-                c.Name = chat.Name;
+                c.GroupName = chat.GroupName;
                 c.Users = chat.Users;
                 c.UsersIds = chat.UsersIds;
                 _db.Chats.Update(c);

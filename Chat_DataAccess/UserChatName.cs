@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Chat_Models
+namespace Chat_DataAccess
 {
-    public class NotificationsDTO
+    public class UserChatName
     {
+        public int Id { get; set; }
+        public string UserId { get; set; }
         public int ChatId { get; set; }
-        public string ChatName { get; set; }
-        public int NewMessages { get; set; }
+        public string Name { get; set; }
     }
 }

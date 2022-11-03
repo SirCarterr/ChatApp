@@ -15,6 +15,7 @@ namespace Chat_Business.Mapper
         {
             CreateMap<Chat, ChatDTO>().ReverseMap();
             CreateMap<ChatMessage, ChatMessageDTO>().ReverseMap();
+            CreateMap<UserChatName, UserChatNameDTO>().ReverseMap();
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿@using System.Text.RegularExpressions
 @inject IChatService _chatService
+@inject IChatNameService _chatNameService
 
 
 <div class="modal fade show" id="ModalLogin" style="display:block; border-color:dimgray" role="dialog" aria-modal="true">
@@ -14,8 +15,20 @@
                 <div class="modal-body">
 
                     <div class="py-2">
-                        <InputText @bind-Value="Chat.Name" placeholder="Name..." class="form-control mb-2" />
-                        <ValidationMessage For="() => Chat.Name"></ValidationMessage>
+                        <InputSelect @bind-Value="Chat.CommunicationType" class="form-select mb2">
+                            <option value="private">Private</option>
+                            <option value="group">Group</option>
+                        </InputSelect>
+                    </div>
+                    <div class="py-2">
+                        @if (Chat.CommunicationType.Equals("private"))
+                        {
+                            <InputText @bind-Value="UserChatNameDTO.Name" placeholder="Chat name..." class="form-control mb-2"></InputText>
+                        }
+                        else
+                        {
+                            <InputText @bind-Value="Chat.GroupName" placeholder="Group name..." class="form-control mb-2"></InputText>
+                        }
                     </div>
                     <div class="py-2">
                         <label>Enter more users dividing them by ';'</label>
@@ -51,7 +64,8 @@
     [Parameter]
     public string UserId { get; set; }
 
-    public ChatDTO Chat { get; set; } = new();
+    public ChatDTO Chat { get; set; } = new() { CommunicationType = "" };
+    public UserChatNameDTO UserChatNameDTO { get; set; } = new();
     public string ErrorMessage { get; set; } = "";
 
 
@@ -88,6 +102,20 @@
                 }
             }
 
+            if (Chat.CommunicationType.Equals("private") && string.IsNullOrEmpty(UserChatNameDTO.Name))
+            {
+                ErrorMessage = "Chat name is not specified";
+                IsError = true;
+                StateHasChanged();
+            }
+
+            if (Chat.CommunicationType.Equals("group") && string.IsNullOrEmpty(Chat.GroupName))
+            {
+                ErrorMessage = "Group name is not specified";
+                IsError = true;
+                StateHasChanged();
+            }
+
             if (!IsError)
             {
                 foreach (var user in AllUsers)
@@ -105,9 +133,16 @@
                     }
                 }
 
-
                 Chat.UserId = UserId;
-                await _chatService.CreateChat(Chat);
+                var chat_db = await _chatService.CreateChat(Chat);
+
+                if (Chat.CommunicationType.Equals("private"))
+                {
+                    UserChatNameDTO.ChatId = chat_db.Id;
+                    UserChatNameDTO.UserId = UserId;
+                    await _chatNameService.Create(UserChatNameDTO);
+                }
+
                 await ModalOk();
             }
         }

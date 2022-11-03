@@ -23,6 +23,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>()
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
+builder.Services.AddScoped<IUserChatNameRepository, UserChatNameRepository>();
 
 builder.Services.AddSignalR();
 

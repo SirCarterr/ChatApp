@@ -18,5 +18,6 @@ namespace Chat_DataAccess.Data
 
         public DbSet<Chat> Chats { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<UserChatName> UserChatNames { get; set; }
     }
 }

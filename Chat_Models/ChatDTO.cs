@@ -13,7 +13,8 @@ namespace Chat_Models
         public int Id { get; set; }
         public string UserId { get; set; }
         [Required]
-        public string Name { get; set; }
+        public string CommunicationType { get; set; }
+        public string? GroupName { get; set; }
         [Required]
         public string Users { get; set; }
         public string UsersIds { get; set; }

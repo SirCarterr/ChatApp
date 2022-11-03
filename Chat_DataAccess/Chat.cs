@@ -15,7 +15,8 @@ namespace Chat_DataAccess
         public int Id { get; set; }
         public string UserId { get; set; } //creator
         [Required]
-        public string Name { get; set; }
+        public string CommunicationType { get; set; } //private | group
+        public string? GroupName { get; set; } //if group chat: same name for everyone
         [Required]
         public string Users { get; set; }
         [Required]
