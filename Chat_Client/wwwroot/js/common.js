@@ -39,3 +39,10 @@ window.IsScrollTop = (elementName, dotNet) => {
         return dotNet.invokeMethodAsync('GetNewMessages');
     }
 }
+
+function addTooltips() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+}

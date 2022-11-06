@@ -34,15 +34,30 @@ namespace Chat_API.SignalR
             await Clients.Group(groupId).SendAsync("Refresh", groupId);
         }
 
-        public async Task AddUserToChat(string groupId, string users)
+        public async Task AddUserToChat(ChatDTO chat)
         {
-            await Clients.Others.SendAsync("CheckChat", groupId, users);
+            await Clients.Others.SendAsync("CheckChat", chat);
         }
 
         public async Task AddChat(string groupId)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, groupId);
             await Clients.Caller.SendAsync("ChatAdded");
+        }
+
+        public async Task CheckUpdate(string groupId, string userId)
+        {
+            await Clients.All.SendAsync("ChatUpdated", groupId, userId);
+        }
+
+        public async Task RefreshUpdatedChat(string groupId)
+        {
+            await Clients.OthersInGroup(groupId).SendAsync("ChatAdded");
+        }
+
+        public async Task UserDeleted(string groupId, string userId)
+        {
+            await Clients.OthersInGroup(groupId).SendAsync("CheckOnRemove", groupId, userId);
         }
     }
 }

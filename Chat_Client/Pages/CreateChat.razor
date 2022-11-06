@@ -6,16 +6,17 @@
 <div class="modal fade show" id="ModalLogin" style="display:block; border-color:dimgray" role="dialog" aria-modal="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <EditForm Model="Chat" OnValidSubmit="AddChat">
+            <EditForm Model="Chat" OnValidSubmit="OnSubmit">
                 <DataAnnotationsValidator></DataAnnotationsValidator>
                 <div class="modal-header">
-                    <h5 class="modal-title" id="exampleModalLabel">Add Chat</h5>
+                    <h5 class="modal-title" id="exampleModalLabel">@(IsEditing ? "Edit Chat" : "Add Chat")</h5>
                     <button type="button" @onclick="@ModalCancel" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
 
                     <div class="py-2">
-                        <InputSelect @bind-Value="Chat.CommunicationType" class="form-select mb2">
+                        <label>Select chat type</label>
+                        <InputSelect @bind-Value="Chat.CommunicationType" class="form-select mb2" contenteditable="@(!IsEditing)">
                             <option value="private">Private</option>
                             <option value="group">Group</option>
                         </InputSelect>
@@ -25,30 +26,44 @@
                         {
                             <InputText @bind-Value="UserChatNameDTO.Name" placeholder="Chat name..." class="form-control mb-2"></InputText>
                         }
-                        else
+                        @if (Chat.CommunicationType.Equals("group"))
                         {
                             <InputText @bind-Value="Chat.GroupName" placeholder="Group name..." class="form-control mb-2"></InputText>
                         }
                     </div>
-                    <div class="py-2">
-                        <label>Enter more users dividing them by ';'</label>
-                        <InputText @bind-Value="Chat.Users" placeholder="User(s)..." class="form-control mb-2" />
-                        @if (IsError)
-                        {
-                            <p class="text-danger">@ErrorMessage</p>
-                        }
-                    </div>
+                    @if (Chat.CommunicationType.Equals("private"))
+                    {
+                        <div class="py-2">
+                            <label>Enter user:</label>
+                            <InputText @bind-Value="Chat.Users" placeholder="User..." class="form-control mb-2" />
+                            @if (IsError)
+                            {
+                                <p class="text-danger">@ErrorMessage</p>
+                            }
+                        </div>
+                    }
+                    @if (Chat.CommunicationType.Equals("group"))
+                    {
+                        <div class="py-2">
+                            <label>Enter users dividing the by ';'</label>
+                            <InputText @bind-Value="Chat.Users" placeholder="Users..." class="form-control mb-2" />
+                            @if (IsError)
+                            {
+                                <p class="text-danger">@ErrorMessage</p>
+                            }
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     @if (IsProcessing)
                     {
                         <NavLink class="btn btn-secondary" disabled>Close</NavLink>
-                        <button class="btn btn-primary" disabled>Create</button>
+                        <button class="btn btn-primary" disabled><img src="/img/Ellipsis.gif" /></button>
                     }
                     else
                     {
                         <NavLink class="btn btn-secondary" @onclick="@ModalCancel">Close</NavLink>
-                        <button class="btn btn-primary">Create</button>
+                        <button class="btn btn-primary">@(IsEditing ? "Update" : "Create")</button>
                     }
                 </div>
             </EditForm>
@@ -63,19 +78,41 @@
     public IEnumerable<UserDTO> AllUsers { get; set; }
     [Parameter]
     public string UserId { get; set; }
+    [Parameter]
+    public ChatDTO? EditChat { get; set; }
 
     public ChatDTO Chat { get; set; } = new() { CommunicationType = "" };
     public UserChatNameDTO UserChatNameDTO { get; set; } = new();
     public string ErrorMessage { get; set; } = "";
 
-
-
+    public bool IsEditing { get; set; } = false;
     public bool IsProcessing { get; set; } = false;
     public bool IsError { get; set; } = false;
 
-    private async Task AddChat()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Regex.IsMatch(Chat.Users, @"([a-zA-z0-9_.-]+@[a-zA-z0-9-]+.[a-zA-z0-9-.]+);?"))
+        if (Chat.Id == 0 && EditChat != null)
+        {
+            IsEditing = true;
+            Chat = new()
+            {
+                Id = EditChat.Id,
+                CommunicationType = EditChat.CommunicationType,
+                UserId = EditChat.UserId,
+                Users = EditChat.Users,
+                UsersIds = EditChat.UsersIds,
+                GroupName = EditChat.GroupName
+            };
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        IsError = false;
+        string pattern = Chat.CommunicationType.Equals("private") ? @"[a-zA-z0-9_.-]+@[a-zA-z0-9-]+.[a-zA-z0-9-.]+" : @"([a-zA-z0-9_.-]+@[a-zA-z0-9-]+.[a-zA-z0-9-.]+);?";
+
+        if (Regex.IsMatch(Chat.Users, pattern))
         {
             string[] added = Chat.Users.Split(';');
 
@@ -118,6 +155,10 @@
 
             if (!IsError)
             {
+                IsProcessing = true;
+                StateHasChanged();
+
+                Chat.UsersIds = "";
                 foreach (var user in AllUsers)
                 {
                     if (Regex.IsMatch(Chat.Users, $"({user.Email})"))
@@ -133,14 +174,21 @@
                     }
                 }
 
-                Chat.UserId = UserId;
-                var chat_db = await _chatService.CreateChat(Chat);
-
-                if (Chat.CommunicationType.Equals("private"))
+                if (IsEditing)
                 {
-                    UserChatNameDTO.ChatId = chat_db.Id;
-                    UserChatNameDTO.UserId = UserId;
-                    await _chatNameService.Create(UserChatNameDTO);
+                    await _chatService.UpdateChat(Chat);
+                }
+                else
+                {
+                    Chat.UserId = UserId;
+                    var chat_db = await _chatService.CreateChat(Chat);
+
+                    if (Chat.CommunicationType.Equals("private"))
+                    {
+                        UserChatNameDTO.ChatId = chat_db.Id;
+                        UserChatNameDTO.UserId = UserId;
+                        await _chatNameService.Create(UserChatNameDTO);
+                    }
                 }
 
                 await ModalOk();

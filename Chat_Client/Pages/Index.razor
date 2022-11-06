@@ -18,26 +18,60 @@
 <AuthorizeView>
     <Authorized>
         <div class="row m-1">
-            <div class="col-md-4">
+            <div class="col-md-4 overflow-auto" style="max-height:850px">
                 <div class="input-group">
                     <input type="text" @bind-value="SearchChat" class="form-control" placeholder="Search chat..." aria-describedby="button-search">
                     <button class="btn btn-primary" type="button" id="button-search" @onclick="() => SearchChats()"><span class="oi oi-magnifying-glass"></span></button>
                 </div>
                 <button class="btn btn-primary mb-3 my-2" type="button" @onclick="() => OpenDialog()">Add new chat <span class="oi oi-plus"></span></button>
                 <h5 class="m-1">Chats</h5>
-                <ul class="list-group overflow-auto" style="max-height:800px; border:2px; border-color:gray; border-radius:5px">
+                <ul class="list-group" style="border:2px; border-color:gray; border-radius:5px">
                     @if (!IsChatsLoading)
                     {
                         @foreach (var chat in Notifications)
                         {
                             <li class="list-group-item d-flex justify-content-between align-items-center" @onclick="() => LoadMessages(UserChats.First(c => c.Id == chat.ChatId))">
-                                <button class="btn btn-sm btn-danger" @ondblclick="() => DeleteChat(chat)"><span class="oi oi-trash"></span></button>
-                                @chat.ChatName
-                                @if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages > 0)
+                                @if (IsRename)
                                 {
-                                    <span class="badge bg-primary rounded-pill">
-                                        @Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages
-                                    </span>
+                                    <div class="input-group">
+                                        <input type="text" @bind-value="chat.ChatName" class="form-control" aria-describedby="button-edit">
+                                        <button type="button" id="button-edit" class="btn btn-sm btn-danger" @onclick="() => CancelRename()"><span class="oi oi-x"></span></button>
+                                        <button type="button" id="button-edit" class="btn btn-sm btn-success" @onclick="() => ChangeChatName(chat)"><span class="oi oi-check"></span></button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="oi oi-ellipses"></span>
+                                        </button>
+                                        <ul class="dropdown-menu" tabindex="-1">
+                                            @if (UserChats.First(c => c.Id == chat.ChatId).CommunicationType.Equals("private"))
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item" @onclick="() => RenameChat()">Rename</button>
+                                                </li>
+                                            }
+                                            else if (UserChats.First(c => c.Id == chat.ChatId).UserId.Equals(CurrentUser.Id))
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item" @onclick="() => OpenEditDialog(UserChats.First(c => c.Id == chat.ChatId))">Edit</button>
+                                                </li>
+                                            }
+                                            <li>
+                                                <button type="button" class="dropdown-item" @onclick="() => DeleteChat(chat)">
+                                                    Delete
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    @chat.ChatName
+                                    @if (Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages > 0)
+                                    {
+                                        <span class="badge bg-primary rounded-pill">
+                                            @Notifications.FirstOrDefault(n => n.ChatName.Equals(chat.ChatName))!.NewMessages
+                                        </span>
+                                    }
                                 }
                             </li>
                         }
@@ -64,7 +98,7 @@
                     {
                         @foreach (var m in CurrentChatMessages)
                         {
-                            if(m.IsReplyMessage)
+                            if (m.IsReplyMessage)
                             {
                                 if (m.FromUserId.Equals(CurrentUser.Id))
                                 {
@@ -126,7 +160,7 @@
                                                 </button>
                                                 <ul class="dropdown-menu">
                                                     <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, false)">Reply</a></li>
-                                                    @if (!CurrentChat.UsersIds.Equals(m.FromUserId)) 
+                                                    @if (!CurrentChat.UsersIds.Equals(m.FromUserId))
                                                     {
                                                         <li><a class="dropdown-item small" @onclick="() => ReplyOnMessage(m, true)">Reply privatly</a></li>
                                                     }
@@ -179,7 +213,7 @@
         </div>
         @if (IsDialogOpen)
         {
-            <CreateChat OnClose="@OnDialogClose" AllUsers="@AllUsers" UserId="@CurrentUser.Id"></CreateChat>
+            <CreateChat OnClose="@OnDialogClose" AllUsers="@AllUsers" UserId="@CurrentUser.Id" EditChat="@EditChat"></CreateChat>
         }
     </Authorized>
 </AuthorizeView>
@@ -207,6 +241,9 @@
     public bool IsPrivateReply { get; set; } = false;
     public string PrivateReplyToUser { get; set; } = "";
 
+    public ChatDTO? EditChat { get; set; }
+    public bool IsRename { get; set; } = false;
+
     [Authorize]
     protected override async Task OnInitializedAsync()
     {
@@ -222,6 +259,11 @@
         {
             await hubConnection.SendAsync("ConnectToChat", chat.Id.ToString());
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await _jsRuntime.InvokeVoidAsync("addTooltips");
     }
 
     private async Task SetHub(string token)
@@ -267,16 +309,19 @@
         {
             await LoadChats();
         });
-        hubConnection.On<string, string>("CheckChat", async (groupId, users) =>
+        hubConnection.On<ChatDTO>("CheckChat", async (chat) =>
         {
-            string[] users_splited = users.Split(';');
+            string[] users_splited = chat.Users.Split(';');
 
             foreach (var user in users_splited)
             {
                 if (CurrentUser.Email.Equals(user))
                 {
-                    await _chatNameService.Create(new UserChatNameDTO() { ChatId = int.Parse(groupId), UserId = CurrentUser.Id, Name = user });
-                    await hubConnection.SendAsync("AddChat", groupId);
+                    if (chat.CommunicationType.Equals("private"))
+                    {
+                        await _chatNameService.Create(new UserChatNameDTO() { ChatId = chat.Id, UserId = CurrentUser.Id, Name = AllUsers.First(u => u.Id.Equals(chat.UserId)).Email });
+                    }
+                    await hubConnection.SendAsync("AddChat", chat.Id.ToString());
                 }
             }
         });
@@ -292,15 +337,39 @@
         });
         hubConnection.On<string>("ChatDeleted", async (groupId) =>
         {
-            if (CurrentChat.Id.ToString().Equals(groupId))
+            if (CurrentChat != null)
             {
-                CurrentChat = new();
-                CurrentChatMessages = new();
-                StateHasChanged();
+                if (CurrentChat.Id.ToString().Equals(groupId))
+                {
+                    CurrentChat = new();
+                    CurrentChatMessages = new();
+                    StateHasChanged();
+                }
             }
 
-            await LoadChats();
+            if (UserChats.First(c => c.Id.ToString().Equals(groupId)).CommunicationType.Equals("private"))
+            {
+                await _chatNameService.Delete(UserChatNames.First(n => n.ChatId.ToString().Equals(groupId)).Id);
+            }
             await _jsRuntime.InvokeVoidAsync("ShowSwalToast2", $"Chat {Notifications.First(c => c.ChatId.ToString().Equals(groupId)).ChatName} deleted by creator");
+            await LoadChats();
+        });
+        hubConnection.On<string, string>("ChatUpdated", async (groupId, userId) =>
+        {
+            if (CurrentUser.Id.Equals(userId))
+            {
+                await hubConnection.SendAsync("AddChat", groupId);
+                await LoadChats();
+            }
+        });
+        hubConnection.On<string, string>("CheckOnRemove", async (groupId, userId) =>
+        {
+            if (CurrentUser.Id.Equals(userId))
+            {
+                await hubConnection.SendAsync("RemoveFromChat", groupId);
+                await _jsRuntime.InvokeVoidAsync("ShowSwalToast2", $"You were removed from chat: {Notifications.First(c => c.ChatId.ToString().Equals(groupId)).ChatName}");
+                await LoadChats();
+            }
         });
     }
 
@@ -346,12 +415,12 @@
         {
             if (UserChats.ToList()[i].Id == chatId)
             {
-                Notifications.Add(new NotificationsDTO() 
-                { 
-                    ChatId = UserChats.ToList()[i].Id, 
-                    ChatName = UserChats.ToList()[i].CommunicationType.Equals("private") ? UserChatNames.First(n => n.ChatId == UserChats.ToList()[i].Id).Name : UserChats.ToList()[i].GroupName!,
-                    NewMessages = current_notifications[i] + 1 
-                });
+                Notifications.Add(new NotificationsDTO()
+                    {
+                        ChatId = UserChats.ToList()[i].Id,
+                        ChatName = UserChats.ToList()[i].CommunicationType.Equals("private") ? UserChatNames.First(n => n.ChatId == UserChats.ToList()[i].Id).Name : UserChats.ToList()[i].GroupName!,
+                        NewMessages = current_notifications[i] + 1
+                    });
             }
             else
             {
@@ -443,7 +512,7 @@
                 bool chatExist = false;
                 foreach (var chat in UserChats)
                 {
-                    if ((chat.UserId.Equals(CurrentUser.Id) && chat.UsersIds.Equals(ReplyMessage.FromUserId)) || 
+                    if ((chat.UserId.Equals(CurrentUser.Id) && chat.UsersIds.Equals(ReplyMessage.FromUserId)) ||
                     (chat.UserId.Equals(ReplyMessage.FromUserId) && chat.UsersIds.Equals(CurrentUser.Id)))
                     {
                         ReplyMessage.ChatId = chat.Id;
@@ -469,15 +538,15 @@
                         };
 
                     UserChatNameDTO userChatName = new UserChatNameDTO()
-                    {
-                        UserId = CurrentUser.Id,
-                        Name = PrivateReplyToUser
-                    };
+                        {
+                            UserId = CurrentUser.Id,
+                            Name = PrivateReplyToUser
+                        };
 
                     var db_chat = await _chatService.CreateChat(newChat);
 
                     userChatName.ChatId = db_chat.Id;
-                    await _chatNameService.Create(userChatName); 
+                    await _chatNameService.Create(userChatName);
 
                     await LoadChats();
                     await hubConnection.SendAsync("ConnectToChat", newChat.Id.ToString());
@@ -629,15 +698,71 @@
 
         if (accepted)
         {
-            await LoadChats();
-            await hubConnection.SendAsync("ConnectToChat", UserChats.LastOrDefault()?.Id.ToString());
-            await hubConnection.SendAsync("AddUserToChat", UserChats.LastOrDefault()?.Id.ToString(), UserChats.LastOrDefault()?.Users);
+            if (EditChat != null)
+            {
+                await LoadChats();
+                ChatDTO chat_updated = UserChats.First(c => c.Id == EditChat.Id);
+                var oldUsersIds = EditChat.UsersIds.Split(';');
+                foreach (var userId in oldUsersIds)
+                {
+                    if (!Regex.IsMatch(chat_updated.UsersIds, $"({userId})"))
+                    {
+                        await hubConnection.SendAsync("UserDeleted", chat_updated.Id.ToString(), userId);
+                    }
+                }
+
+                await hubConnection.SendAsync("RefreshUpdatedChat", chat_updated.Id.ToString());
+                
+                var usersIds = chat_updated.UsersIds.Split(';');
+                foreach (var userId in usersIds)
+                {
+                    if (!Regex.IsMatch(EditChat.UsersIds, $"({userId})"))
+                    {
+                        await hubConnection.SendAsync("CheckUpdate", chat_updated.Id.ToString(), userId);
+                    }
+                }
+                EditChat = null;
+            }
+            else
+            {
+                await LoadChats();
+                await hubConnection.SendAsync("ConnectToChat", UserChats.LastOrDefault()?.Id.ToString());
+                await hubConnection.SendAsync("AddUserToChat", UserChats.LastOrDefault());
+            }
         }
     }
 
     private void OpenDialog()
     {
         IsDialogOpen = true;
+        StateHasChanged();
+    }
+
+    private void OpenEditDialog(ChatDTO chat)
+    {
+        EditChat = chat;
+        IsDialogOpen = true;
+        StateHasChanged();
+    }
+
+    private async void ChangeChatName(NotificationsDTO chat)
+    {
+        var chatName = UserChatNames.First(n => n.ChatId == chat.ChatId);
+        chatName.Name = chat.ChatName;
+        await _chatNameService.Update(chatName);
+        IsRename = false;
+        await LoadChats();
+    }
+
+    private void RenameChat()
+    {
+        IsRename = true;
+        StateHasChanged();
+    }
+
+    private void CancelRename()
+    {
+        IsRename = false;
         StateHasChanged();
     }
 }
