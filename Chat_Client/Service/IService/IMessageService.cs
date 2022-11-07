@@ -9,5 +9,6 @@ namespace Chat_Client.Service.IService
         public Task<ChatMessageDTO> CreateMessage(ChatMessageDTO messageDTO);
         public Task<ChatMessageDTO> UpdateMessage(ChatMessageDTO messageDTO);
         public Task<bool> DeleteMessage(int id);
+        public Task<int> LoadNewMessages(int chatId, string userId);
     }
 }

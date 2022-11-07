@@ -62,6 +62,18 @@ namespace Chat_Client.Service
             return new List<ChatMessageDTO>();
         }
 
+        public async Task<int> LoadNewMessages(int chatId, string userId)
+        {
+            var response = await _httpClient.GetAsync($"/api/message/LoadNewMessages/{chatId}/{userId})");
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var count = JsonConvert.DeserializeObject<int>(content);
+                return count;
+            }
+            return 0;
+        }
+
         public async Task<ChatMessageDTO> UpdateMessage(ChatMessageDTO messageDTO)
         {
             var content = JsonConvert.SerializeObject(messageDTO);

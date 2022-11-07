@@ -64,6 +64,26 @@ namespace Chat_Business.Repository
                 .Where(m => m.Id < startId && m.ChatId == chatId).Take(20));
         }
 
+        public async Task<int> GetNewMessagesNumber(int chatId, string userId)
+        {
+            var messages = _db.ChatMessages.Include(c => c.Chat).OrderByDescending(m => m.Id).Where(m => m.ChatId == chatId);
+            int count = 0;
+
+            foreach (var message in messages)
+            {
+                if (message.FromUserId.Equals(userId))
+                {
+                    break;
+                }
+                else
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         public async Task<ChatMessageDTO> UpdateMessage(ChatMessageDTO message)
         {
             var m_db = await _db.ChatMessages.FirstOrDefaultAsync(m => m.Id == message.Id);

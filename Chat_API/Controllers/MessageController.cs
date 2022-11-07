@@ -83,5 +83,31 @@ namespace Chat_API.Controllers
 
             return Ok(201);
         }
+
+        [HttpGet("{chatId}/{userId}")]
+        [ActionName("LoadNewMessages")]
+        public async Task<IActionResult> LoadNewMessages(int? chatId, string? userId)
+        {
+            if (chatId == 0 || chatId == null)
+            {
+                return BadRequest(new ErrorModelDTO()
+                {
+                    ErrorMessage = "Invalid chatId",
+                    StatusCode = StatusCodes.Status406NotAcceptable
+                });
+            }
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return BadRequest(new ErrorModelDTO()
+                {
+                    ErrorMessage = "Invalid userId",
+                    StatusCode = StatusCodes.Status406NotAcceptable
+                });
+            }
+
+            int count = await _chatMessageRepository.GetNewMessagesNumber(chatId.Value, userId);
+            return Ok(count);
+        }
     }
 }

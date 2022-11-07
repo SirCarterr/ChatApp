@@ -380,17 +380,19 @@
 
         UserChats = await _chatService.GetChats();
         UserChatNames = await _chatNameService.GetNames(CurrentUser.Id);
+        int newMessages = 0;
 
         Notifications.Clear();
         if (UserChats.Any())
         {
             foreach (var chat in UserChats)
             {
+                newMessages = await _messageService.LoadNewMessages(chat.Id, CurrentUser.Id);
                 Notifications.Add(new NotificationsDTO()
                     {
                         ChatId = chat.Id,
                         ChatName = chat.CommunicationType.Equals("private") ? UserChatNames.FirstOrDefault(n => n.ChatId == chat.Id).Name : chat.GroupName!,
-                        NewMessages = 0
+                        NewMessages = newMessages
                     });
             }
         }

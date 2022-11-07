@@ -14,5 +14,6 @@ namespace Chat_Business.Repository.IRepository
         public Task<ChatMessageDTO> CreateMessage(ChatMessageDTO message);
         public Task<ChatMessageDTO> UpdateMessage(ChatMessageDTO message);
         public Task<int> DeleteMessage(int id);
+        public Task<int> GetNewMessagesNumber(int chatId, string userId);
     }
 }
